@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KMZ → CSV | RuangNalar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50">
+  <div class="max-w-2xl mx-auto p-6">
+    <div class="bg-white rounded-2xl shadow p-6">
+      <h1 class="text-2xl font-semibold">KMZ → CSV Converter</h1>
+      <p class="text-slate-600 mt-2">
+        Upload KMZ Homepass+Boundary (wajib), KMZ POLE (opsional). Output ZIP berisi CSV.
+      </p>
+
+      <form id="f" class="mt-6 space-y-4">
+        <div>
+          <label class="font-medium">KMZ Homepass + Boundary FAT (wajib)</label>
+          <input name="kmz_homepass" type="file" accept=".kmz" required class="mt-2 block w-full" />
+        </div>
+
+        <div>
+          <label class="font-medium">KMZ POLE (opsional)</label>
+          <input name="kmz_pole" type="file" accept=".kmz" class="mt-2 block w-full" />
+        </div>
+
+        <label class="flex items-center gap-2">
+          <input name="include_street" type="checkbox" class="h-4 w-4" />
+          <span>Tambahkan nama jalan (OSM) <span class="text-slate-500">(lebih lama)</span></span>
+        </label>
+
+        <button class="bg-black text-white px-4 py-2 rounded-xl" type="submit">
+          Proses & Download ZIP
+        </button>
+
+        <div id="status" class="text-sm text-slate-600"></div>
+      </form>
+    </div>
+  </div>
+
+<script>
+const form = document.getElementById('f');
+const statusEl = document.getElementById('status');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  statusEl.textContent = "Memproses...";
+
+  const fd = new FormData(form);
+  fd.set("include_street", form.include_street.checked ? "true" : "false");
+
+  try {
+    const res = await fetch('/api/convert/all', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || ("HTTP " + res.status));
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "kmz_output.zip";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    statusEl.textContent = "Selesai. File ZIP terunduh.";
+  } catch (err) {
+    statusEl.textContent = "Gagal: " + err.message;
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+services:
+  api:
+    build: .
+    volumes:
+      - geodata:/data
+    environment:
+      - APP_USER_AGENT=KMZ2CSV RuangNalar (contact: admin@ruangnalar.online)
+      - GEOCODE_THROTTLE_SECONDS=1.05
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  geodata:

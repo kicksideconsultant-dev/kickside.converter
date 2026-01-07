@@ -1,0 +1,19 @@
+{
+  "name": "KMZ2CSV Dev",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "api",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [80],
+  "portsAttributes": {
+    "80": { "label": "KMZ2CSV Web" }
+  },
+  "postCreateCommand": "python -V && pip -V",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
+}
