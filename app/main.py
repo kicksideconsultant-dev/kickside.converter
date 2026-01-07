@@ -24,6 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     return "<h3>Backend OK. Open web via Nginx.</h3>"
@@ -58,17 +59,23 @@ async def convert_auto(
                 try:
                     info = detect_types(src_path)
                 except Exception:
+                    info = None
+
+                # ✅ Guard biar tidak 500 kalau detect_types gagal / return None
+                if not isinstance(info, dict):
                     continue
 
                 base = os.path.splitext(os.path.basename(up.filename))[0].replace(" ", "_")
 
-                if info.get("homepass"):
+                if info.get("homepass", False):
                     hp_df = convert_homepass(src_path)
 
                     if include_street and not hp_df.empty:
                         roads, displays = [], []
                         for _, r in hp_df.iterrows():
-                            road, display = await reverse_geocode_road(float(r["lat"]), float(r["lon"]), APP_USER_AGENT)
+                            road, display = await reverse_geocode_road(
+                                float(r["lat"]), float(r["lon"]), APP_USER_AGENT
+                            )
                             roads.append(road)
                             displays.append(display)
                         hp_df["street"] = roads
@@ -79,7 +86,7 @@ async def convert_auto(
                     z.write(hp_csv, arcname=f"{base}_homepass.csv")
                     produced_any = True
 
-                if info.get("pole"):
+                if info.get("pole", False):
                     pole_df = convert_pole(src_path)
                     pole_csv = os.path.join(td, f"{base}_pole.csv")
                     pole_df.to_csv(pole_csv, index=False)

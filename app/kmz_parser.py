@@ -112,7 +112,7 @@ def convert_pole(path: str) -> pd.DataFrame:
     root = parse_root(path)
 
     pole_folder = find_folder(root, "POLE")
-    fat_folder = find_folder(root, "FAT")  # di file pole: FAT biasanya point
+    fat_folder = find_folder(root, "FAT")
 
     if pole_folder is None or fat_folder is None:
         raise ValueError("Folder POLE atau FAT tidak ditemukan di file.")
@@ -151,8 +151,22 @@ def convert_pole(path: str) -> pd.DataFrame:
 def detect_types(path: str) -> dict:
     """
     Return dict: {"homepass": bool, "pole": bool, "fat_polygon": bool}
+    Tidak boleh return None.
     """
     root = parse_root(path)
 
     def has_folder(name: str) -> bool:
-        return f
+        return find_folder(root, name) is not None
+
+    fat_polygon = False
+    fat_folder = find_folder(root, "FAT")
+    if fat_folder is not None:
+        for pm in fat_folder.findall(".//kml:Placemark", KML_NS):
+            if pm.find(".//kml:Polygon", KML_NS) is not None:
+                fat_polygon = True
+                break
+
+    is_homepass = (has_folder("HP") or has_folder("HOME")) and has_folder("FAT") and fat_polygon
+    is_pole = has_folder("POLE") and has_folder("FAT")
+
+    return {"homepass": bool(is_homepass), "pole": bool(is_pole), "fat_polygon": bool(fat_polygon)}
