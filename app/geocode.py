@@ -7,6 +7,7 @@ import httpx
 
 DB_PATH = "/data/geocache.sqlite3"
 
+
 def _init_db():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -21,8 +22,10 @@ def _init_db():
     conn.commit()
     conn.close()
 
+
 def _key(lat: float, lon: float) -> str:
     return f"{round(lat, 6)},{round(lon, 6)}"
+
 
 async def reverse_geocode_road(lat: float, lon: float, user_agent: str) -> Tuple[Optional[str], Optional[str]]:
     _init_db()

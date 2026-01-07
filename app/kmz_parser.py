@@ -8,18 +8,19 @@ from shapely.prepared import prep
 
 KML_NS = {"kml": "http://www.opengis.net/kml/2.2"}
 
-def _read_kml_bytes(path: str) -> bytes:
+
+def read_kml_bytes(path: str) -> bytes:
     """
-    Support .kmz (zip berisi doc.kml) dan .kml (langsung XML).
+    Support .kmz (zip berisi doc.kml / *.kml) dan .kml (langsung XML).
     """
     low = path.lower()
+
     if low.endswith(".kml"):
         with open(path, "rb") as f:
             return f.read()
 
     if low.endswith(".kmz"):
         with zipfile.ZipFile(path, "r") as z:
-            # biasanya doc.kml, tapi kadang namanya beda -> cari file .kml pertama
             names = z.namelist()
             if "doc.kml" in names:
                 return z.read("doc.kml")
@@ -30,14 +31,21 @@ def _read_kml_bytes(path: str) -> bytes:
 
     raise ValueError("File harus .kmz atau .kml")
 
-def _find_folder(root: ET.Element, folder_name: str) -> Optional[ET.Element]:
+
+def parse_root(path: str) -> ET.Element:
+    return ET.fromstring(read_kml_bytes(path))
+
+
+def find_folder(root: ET.Element, folder_name: str) -> Optional[ET.Element]:
+    target = folder_name.upper()
     for f in root.findall(".//kml:Folder", KML_NS):
         name = f.findtext("kml:name", default="", namespaces=KML_NS).strip()
-        if name == folder_name:
+        if name.upper() == target:
             return f
     return None
 
-def _extract_points(folder: ET.Element, id_col: str) -> pd.DataFrame:
+
+def extract_points(folder: ET.Element, id_col: str) -> pd.DataFrame:
     rows = []
     for pm in folder.findall(".//kml:Placemark", KML_NS):
         coord_el = pm.find(".//kml:Point/kml:coordinates", KML_NS)
@@ -48,7 +56,8 @@ def _extract_points(folder: ET.Element, id_col: str) -> pd.DataFrame:
         rows.append({id_col: name, "lon": lon, "lat": lat})
     return pd.DataFrame(rows)
 
-def _extract_polygons(folder: ET.Element) -> List[Tuple[str, Polygon]]:
+
+def extract_polygons(folder: ET.Element) -> List[Tuple[str, Polygon]]:
     polys = []
     for pm in folder.findall(".//kml:Placemark", KML_NS):
         poly_el = pm.find(".//kml:Polygon", KML_NS)
@@ -67,18 +76,21 @@ def _extract_polygons(folder: ET.Element) -> List[Tuple[str, Polygon]]:
 
         if len(coords) >= 3:
             polys.append((name, Polygon(coords)))
+
     return polys
 
-root = ET.fromstring(_read_kml_bytes(kmz_path))
-    root = ET.fromstring(_read_doc_kml_bytes(kmz_path))
-    fat_folder = _find_folder(root, "FAT")
-    hp_folder = _find_folder(root, "HP") or _find_folder(root, "HOME")
+
+def convert_homepass(path: str) -> pd.DataFrame:
+    root = parse_root(path)
+
+    fat_folder = find_folder(root, "FAT")
+    hp_folder = find_folder(root, "HP") or find_folder(root, "HOME")
 
     if fat_folder is None or hp_folder is None:
-        raise ValueError("Folder FAT atau HP/HOME tidak ditemukan di KMZ.")
+        raise ValueError("Folder FAT atau HP/HOME tidak ditemukan di file.")
 
-    fat_polys = _extract_polygons(fat_folder)
-    hp_df = _extract_points(hp_folder, "homepass_id")
+    fat_polys = extract_polygons(fat_folder)
+    hp_df = extract_points(hp_folder, "homepass_id")
 
     prepared = [(name, prep(poly)) for name, poly in fat_polys]
 
@@ -95,29 +107,33 @@ root = ET.fromstring(_read_kml_bytes(kmz_path))
     hp_df["fat_boundary"] = assigned
     return hp_df[["homepass_id", "lat", "lon", "fat_boundary"]]
 
-root = ET.fromstring(_read_kml_bytes(kmz_path))
-    root = ET.fromstring(_read_doc_kml_bytes(kmz_path))
-    pole_folder = _find_folder(root, "POLE")
-    fat_folder = _find_folder(root, "FAT")
+
+def convert_pole(path: str) -> pd.DataFrame:
+    root = parse_root(path)
+
+    pole_folder = find_folder(root, "POLE")
+    fat_folder = find_folder(root, "FAT")  # di file pole: FAT biasanya point
 
     if pole_folder is None or fat_folder is None:
-        raise ValueError("Folder POLE atau FAT tidak ditemukan di KMZ.")
+        raise ValueError("Folder POLE atau FAT tidak ditemukan di file.")
 
-    poles = _extract_points(pole_folder, "pole_id")
-    fats = _extract_points(fat_folder, "fat_id")
+    poles = extract_points(pole_folder, "pole_id")
+    fats = extract_points(fat_folder, "fat_id")
 
     import math
+
     def haversine_m(lat1, lon1, lat2, lon2) -> float:
         R = 6371000.0
         p1, p2 = math.radians(lat1), math.radians(lat2)
         dlat = math.radians(lat2 - lat1)
         dlon = math.radians(lon2 - lon1)
-        a = math.sin(dlat/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dlon/2)**2
+        a = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlon / 2) ** 2
         return 2 * R * math.asin(math.sqrt(a))
 
     fats_list = fats.to_dict("records")
     nearest = []
     distm = []
+
     for _, r in poles.iterrows():
         best_name, best_d = None, float("inf")
         for f in fats_list:
@@ -130,3 +146,13 @@ root = ET.fromstring(_read_kml_bytes(kmz_path))
     poles["nearest_fat"] = nearest
     poles["dist_to_fat_m"] = distm
     return poles[["pole_id", "lat", "lon", "nearest_fat", "dist_to_fat_m"]]
+
+
+def detect_types(path: str) -> dict:
+    """
+    Return dict: {"homepass": bool, "pole": bool, "fat_polygon": bool}
+    """
+    root = parse_root(path)
+
+    def has_folder(name: str) -> bool:
+        return f

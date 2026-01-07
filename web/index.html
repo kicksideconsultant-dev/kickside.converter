@@ -3,26 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>KMZ → CSV | RuangNalar</title>
+  <title>KMZ/KML → CSV | RuangNalar</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-50">
   <div class="max-w-2xl mx-auto p-6">
     <div class="bg-white rounded-2xl shadow p-6">
-      <h1 class="text-2xl font-semibold">KMZ → CSV Converter</h1>
+      <h1 class="text-2xl font-semibold">KMZ/KML → CSV Converter</h1>
       <p class="text-slate-600 mt-2">
-        Upload KMZ Homepass+Boundary (wajib), KMZ POLE (opsional). Output ZIP berisi CSV.
+        Upload file KMZ/KML (boleh lebih dari 1). Sistem otomatis klasifikasi Homepass/Pole dan output ZIP berisi CSV.
       </p>
 
       <form id="f" class="mt-6 space-y-4">
         <div>
-          <label class="font-medium">KMZ Homepass + Boundary FAT (wajib)</label>
-          <input name="kmz_homepass" type="file" accept=".kmz,.kml" required class="mt-2 block w-full" />
-        </div>
-
-        <div>
-          <label class="font-medium">KMZ POLE (opsional)</label>
-          <input name="kmz_pole" type="file" accept=".kmz,.kml" class="mt-2 block w-full" />
+          <label class="font-medium">Upload file KMZ/KML (boleh lebih dari 1)</label>
+          <input name="files" type="file" accept=".kmz,.kml" multiple required class="mt-2 block w-full" />
         </div>
 
         <label class="flex items-center gap-2">
@@ -47,11 +42,19 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   statusEl.textContent = "Memproses...";
 
-  const fd = new FormData(form);
-  fd.set("include_street", form.include_street.checked ? "true" : "false");
+  const fd = new FormData();
+  const files = form.querySelector('input[name="files"]').files;
+
+  if (!files || files.length === 0) {
+    statusEl.textContent = "Pilih minimal 1 file KMZ/KML.";
+    return;
+  }
+
+  for (const f of files) fd.append("files", f);
+  fd.append("include_street", form.include_street.checked ? "true" : "false");
 
   try {
-    const res = await fetch('/api/convert/all', { method: 'POST', body: fd });
+    const res = await fetch('/api/convert/auto', { method: 'POST', body: fd });
     if (!res.ok) {
       const t = await res.text();
       throw new Error(t || ("HTTP " + res.status));
