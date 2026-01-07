@@ -4,8 +4,8 @@ services:
     volumes:
       - geodata:/data
     environment:
-      - APP_USER_AGENT=KMZ2CSV RuangNalar (contact: admin@ruangnalar.online)
-      - GEOCODE_THROTTLE_SECONDS=1.05
+      APP_USER_AGENT: "KMZ2CSV RuangNalar (contact: admin@ruangnalar.online)"
+      GEOCODE_THROTTLE_SECONDS: "1.05"
     restart: unless-stopped
 
   nginx:
