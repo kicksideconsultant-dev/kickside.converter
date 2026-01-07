@@ -28,9 +28,10 @@ app.add_middleware(
 def home():
     return "<h3>Backend OK. Open web via Nginx.</h3>"
 
-def _ensure_kmz(filename: str):
-    if not filename.lower().endswith(".kmz"):
-        raise HTTPException(status_code=400, detail="File harus .kmz")
+def _ensure_kml_kmz(filename: str):
+    low = filename.lower()
+    if not (low.endswith(".kmz") or low.endswith(".kml")):
+        raise HTTPException(status_code=400, detail="File harus .kmz atau .kml")
 
 @app.post("/convert/all")
 async def convert_all(
@@ -45,7 +46,8 @@ async def convert_all(
     with tempfile.TemporaryDirectory() as td:
         out_zip = os.path.join(td, "output.zip")
 
-        hp_path = os.path.join(td, "homepass.kmz")
+        hp_ext = ".kml" if kmz_homepass.filename.lower().endswith(".kml") else ".kmz"
+        hp_path = os.path.join(td, "homepass" + hp_ext)
         with open(hp_path, "wb") as f:
             f.write(await kmz_homepass.read())
 

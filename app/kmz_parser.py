@@ -8,10 +8,27 @@ from shapely.prepared import prep
 
 KML_NS = {"kml": "http://www.opengis.net/kml/2.2"}
 
-def _read_doc_kml_bytes(kmz_path: str) -> bytes:
-    with zipfile.ZipFile(kmz_path, "r") as z:
-        # Umumnya doc.kml
-        return z.read("doc.kml")
+def _read_kml_bytes(path: str) -> bytes:
+    """
+    Support .kmz (zip berisi doc.kml) dan .kml (langsung XML).
+    """
+    low = path.lower()
+    if low.endswith(".kml"):
+        with open(path, "rb") as f:
+            return f.read()
+
+    if low.endswith(".kmz"):
+        with zipfile.ZipFile(path, "r") as z:
+            # biasanya doc.kml, tapi kadang namanya beda -> cari file .kml pertama
+            names = z.namelist()
+            if "doc.kml" in names:
+                return z.read("doc.kml")
+            kmls = [n for n in names if n.lower().endswith(".kml")]
+            if not kmls:
+                raise ValueError("KMZ tidak berisi file .kml")
+            return z.read(kmls[0])
+
+    raise ValueError("File harus .kmz atau .kml")
 
 def _find_folder(root: ET.Element, folder_name: str) -> Optional[ET.Element]:
     for f in root.findall(".//kml:Folder", KML_NS):
@@ -52,7 +69,7 @@ def _extract_polygons(folder: ET.Element) -> List[Tuple[str, Polygon]]:
             polys.append((name, Polygon(coords)))
     return polys
 
-def convert_homepass_kmz(kmz_path: str) -> pd.DataFrame:
+root = ET.fromstring(_read_kml_bytes(kmz_path))
     root = ET.fromstring(_read_doc_kml_bytes(kmz_path))
     fat_folder = _find_folder(root, "FAT")
     hp_folder = _find_folder(root, "HP") or _find_folder(root, "HOME")
@@ -78,7 +95,7 @@ def convert_homepass_kmz(kmz_path: str) -> pd.DataFrame:
     hp_df["fat_boundary"] = assigned
     return hp_df[["homepass_id", "lat", "lon", "fat_boundary"]]
 
-def convert_pole_kmz(kmz_path: str) -> pd.DataFrame:
+root = ET.fromstring(_read_kml_bytes(kmz_path))
     root = ET.fromstring(_read_doc_kml_bytes(kmz_path))
     pole_folder = _find_folder(root, "POLE")
     fat_folder = _find_folder(root, "FAT")
